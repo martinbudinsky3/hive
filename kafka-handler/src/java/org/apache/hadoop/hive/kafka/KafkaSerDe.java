@@ -126,7 +126,7 @@ import java.util.stream.Collectors;
     if (delegateSerDe.getSerializedClass() == Text.class) {
       bytesConverter = new TextBytesConverter();
     } else if (delegateSerDe.getSerializedClass() == AvroGenericRecordWritable.class) {
-      String schemaFromProperty = properties.getProperty(AvroSerdeUtils.AvroTableProperties.SCHEMA_LITERAL.getPropName(), "");
+      String schemaFromProperty = tableProperties.getProperty(AvroSerdeUtils.AvroTableProperties.SCHEMA_LITERAL.getPropName(), "");
       Preconditions.checkArgument(!schemaFromProperty.isEmpty(), "Avro Schema is empty Can not go further");
       Schema schema = AvroSerdeUtils.getSchemaFor(schemaFromProperty);
       log.debug("Building Avro Reader with schema {}", schemaFromProperty);
