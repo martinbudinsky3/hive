@@ -30,6 +30,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Properties;
 
@@ -97,14 +99,27 @@ import java.util.Properties;
   }
 
   @Override public boolean next(NullWritable nullWritable, KafkaWritable bytesWritable) {
-    if (started && recordsCursor.hasNext()) {
-      ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
+    ConsumerRecord<byte[], byte[]> record;
+    if (started && (record = nextRecord()) != null) {
       bytesWritable.set(record);
-      consumedRecords += 1;
-      readBytes += record.serializedValueSize();
       return true;
     }
     return false;
+  }
+
+  private ConsumerRecord<byte[], byte[]> nextRecord() {
+    if(recordsCursor.hasNext()) {
+      ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
+      consumedRecords += 1;
+      readBytes += record.serializedValueSize();
+      if (record.value() != null) {
+        return record;
+      }
+
+      return nextRecord();
+    }
+
+    return null;
   }
 
   @Override public NullWritable createKey() {
