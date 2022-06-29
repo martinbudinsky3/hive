@@ -36,6 +36,7 @@ enum KafkaTableProperties {
    * Table property indicating which delegate serde to be used.
    */
   SERDE_CLASS_NAME("kafka.serde.class", JsonSerDe.class.getName()),
+  SERDE_IGNORE_NULL("kafka.serde.ignore.null", null),
   /**
    * Table property indicating poll/fetch timeout period in millis.
    * FYI this is independent from internal Kafka consumer timeouts.

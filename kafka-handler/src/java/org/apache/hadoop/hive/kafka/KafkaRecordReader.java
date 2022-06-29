@@ -26,6 +26,7 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -163,7 +164,7 @@ import java.util.stream.Collectors;
       ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
       consumedRecords += 1;
       readBytes += record.serializedValueSize();
-      if (record.value() == null) {
+      if (record.value() == null && checkNullIgnore()) {
         continue;
       }
 
@@ -175,6 +176,12 @@ import java.util.stream.Collectors;
     }
 
     return null;
+  }
+
+  private boolean checkNullIgnore() {
+      boolean ignoreNull = Boolean.parseBoolean(config.get(KafkaTableProperties.SERDE_IGNORE_NULL.getName()));
+      LOG.debug("serde.ignore.null: {}", ignoreNull);
+      return ignoreNull;
   }
 
   private boolean checkSubject(ConsumerRecord<byte[], byte[]> record) {
