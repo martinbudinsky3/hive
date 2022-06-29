@@ -19,7 +19,13 @@
 package org.apache.hadoop.hive.kafka;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -30,10 +36,10 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Properties;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Kafka Records Reader implementation.
@@ -47,11 +53,14 @@ import java.util.Properties;
   private Configuration config = null;
   private KafkaWritable currentWritableValue;
   private Iterator<ConsumerRecord<byte[], byte[]>> recordsCursor = null;
+  private SchemaRegistryClient schemaRegistryClient;
+  private List<Integer> subjectIds = new ArrayList();
 
   private long totalNumberRecords = 0L;
   private long consumedRecords = 0L;
   private long readBytes = 0L;
   private volatile boolean started = false;
+  private boolean isAvroTopic = false;
 
   @SuppressWarnings("WeakerAccess") public KafkaRecordReader() {
   }
@@ -64,6 +73,43 @@ import java.util.Properties;
       Preconditions.checkNotNull(brokerString, "broker end point can not be null");
       LOG.info("Starting Consumer with Kafka broker string [{}]", brokerString);
       consumer = new KafkaConsumer<>(properties);
+    }
+
+    isAvroTopic = checkAvro();
+
+    if(isAvroTopic) {
+      fetchSubjectIds();
+    }
+  }
+
+  private boolean checkAvro() {
+    String schemaUrl = config.get(AvroSerdeUtils.AvroTableProperties.SCHEMA_URL.getPropName());
+
+    return !(schemaUrl == null || "".equals(schemaUrl));
+  }
+
+  private void fetchSubjectIds() {
+      String schemaRegistryUrl = AvroSerdeUtils.getBaseUrl(config);
+      schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
+      String subject = AvroSerdeUtils.getSubject(config);
+      Preconditions.checkNotNull(subject);
+      try {
+        List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
+        subjectIds = versions.stream()
+                .map(version -> fetchSubjectIdByVersion(subject, version))
+                .collect(Collectors.toList());
+
+      } catch (IOException | RestClientException e) {
+        throw new RuntimeException(e);
+      }
+  }
+
+  private int fetchSubjectIdByVersion(String subject, int version) {
+    try {
+        SchemaMetadata schemaMetadata = schemaRegistryClient.getSchemaMetadata(subject, version);
+        return schemaMetadata.getId();
+    } catch (IOException | RestClientException e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -108,18 +154,28 @@ import java.util.Properties;
   }
 
   private ConsumerRecord<byte[], byte[]> nextRecord() {
-    if(recordsCursor.hasNext()) {
-      ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
-      consumedRecords += 1;
-      readBytes += record.serializedValueSize();
-      if (record.value() != null) {
-        return record;
-      }
+    if(!recordsCursor.hasNext()) {
+      return null;
+    }
 
+    ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
+    consumedRecords += 1;
+    readBytes += record.serializedValueSize();
+    if (record.value() == null) {
       return nextRecord();
     }
 
-    return null;
+    if (isAvroTopic && !checkSubject(record)) {
+      return nextRecord();
+    }
+
+    return record;
+  }
+
+  private boolean checkSubject(ConsumerRecord<byte[], byte[]> record) {
+    int subjectId = ByteBuffer.wrap(Arrays.copyOfRange(record.value(), 1, 5)).getInt();
+
+    return subjectIds.contains(subjectId);
   }
 
   @Override public NullWritable createKey() {

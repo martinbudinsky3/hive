@@ -37,16 +37,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Utilities useful only to the AvroSerde itself.  Not mean to be used by
@@ -353,5 +353,35 @@ public class AvroSerdeUtils {
                   AvroTableProperties.SCHEMA_URL.getPropName() + " from table properties.");
       }
     }
+  }
+
+  public static String getBaseUrl(Configuration config) {
+      String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
+
+      return getBaseUrl(schemaUrlString);
+  }
+
+  public static String getBaseUrl(String schemaUrlString) {
+    try {
+      URL schemaUrl = new URL(schemaUrlString);
+      return schemaUrl.getProtocol() + "://" + schemaUrl.getHost() + ":" + schemaUrl.getPort();
+    } catch (MalformedURLException e) {
+      return "";
+    }
+  }
+
+  public static String getSubject(Configuration config) {
+    String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
+    if (schemaUrlString.contains(".avsc")) {
+      return "";
+    }
+
+    Pattern pattern = Pattern.compile(getBaseUrl(schemaUrlString) + "/subjects/(.+)/versions/.+/schema");
+    Matcher matcher = pattern.matcher(schemaUrlString);
+
+    if(matcher.find()) {
+      return matcher.group(1);
+    }
+    return "";
   }
 }
