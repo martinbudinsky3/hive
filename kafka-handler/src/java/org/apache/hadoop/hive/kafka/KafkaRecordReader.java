@@ -159,22 +159,26 @@ import java.util.stream.Collectors;
   }
 
   private ConsumerRecord<byte[], byte[]> nextRecord() {
-    if(!recordsCursor.hasNext()) {
-      return null;
-    }
+    while (true) {
+      if(!recordsCursor.hasNext()) {
+        return null;
+      }
 
-    ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
-    consumedRecords += 1;
-    readBytes += record.serializedValueSize();
-    if (record.value() == null) {
-      return nextRecord();
-    }
+      ConsumerRecord<byte[], byte[]> record = recordsCursor.next();
+      consumedRecords += 1;
+      readBytes += record.serializedValueSize();
+      if (record.value() == null) {
+        // return nextRecord();
+        continue;
+      }
 
-    if (isAvroTopic && !checkSubject(record)) {
-      return nextRecord();
-    }
+      if (isAvroTopic && !checkSubject(record)) {
+        // return nextRecord();
+        continue;
+      }
 
-    return record;
+      return record;
+    }
   }
 
   private boolean checkSubject(ConsumerRecord<byte[], byte[]> record) {
