@@ -180,7 +180,9 @@ import java.util.stream.Collectors;
   private boolean checkSubject(ConsumerRecord<byte[], byte[]> record) {
     int subjectId = ByteBuffer.wrap(Arrays.copyOfRange(record.value(), 1, 5)).getInt();
     LOG.debug("Subject Id from record: {}", subjectId);
-    return subjectIds.contains(subjectId);
+
+    return subjectId == 521;
+    // return subjectIds.contains(subjectId);
   }
 
   @Override public NullWritable createKey() {
