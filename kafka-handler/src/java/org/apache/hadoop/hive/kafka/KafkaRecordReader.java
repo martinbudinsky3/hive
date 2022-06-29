@@ -24,6 +24,7 @@ import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
 import org.apache.hadoop.io.NullWritable;
@@ -90,14 +91,18 @@ import java.util.stream.Collectors;
 
   private void fetchSubjectIds() {
       String schemaRegistryUrl = AvroSerdeUtils.getBaseUrl(config);
+      LOG.debug("Schema Url: {}", schemaRegistryUrl);
       schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
       String subject = AvroSerdeUtils.getSubject(config);
+      LOG.debug("Subject: {}", subject);
       Preconditions.checkNotNull(subject);
       try {
         List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
         subjectIds = versions.stream()
                 .map(version -> fetchSubjectIdByVersion(subject, version))
                 .collect(Collectors.toList());
+
+        LOG.debug("Versions found: {}", StringUtils.join(subjectIds, ','));
 
       } catch (IOException | RestClientException e) {
         throw new RuntimeException(e);
@@ -174,7 +179,7 @@ import java.util.stream.Collectors;
 
   private boolean checkSubject(ConsumerRecord<byte[], byte[]> record) {
     int subjectId = ByteBuffer.wrap(Arrays.copyOfRange(record.value(), 1, 5)).getInt();
-
+    LOG.debug("Subject Id from record: {}", subjectId);
     return subjectIds.contains(subjectId);
   }
 
