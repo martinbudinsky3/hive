@@ -355,25 +355,24 @@ public class AvroSerdeUtils {
     }
   }
 
-  public static String getBaseUrl(Configuration config) {
-      String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
-
-      return getBaseUrl(schemaUrlString);
-  }
-
-  public static String getBaseUrl(String schemaUrlString) {
-    try {
-      URL schemaUrl = new URL(schemaUrlString);
-      return schemaUrl.getProtocol() + "://" + schemaUrl.getHost() + ":" + schemaUrl.getPort();
-    } catch (MalformedURLException e) {
-      return "";
+  public static String getBaseUrl(Configuration config) throws MalformedURLException {
+    String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
+    if (schemaUrlString == null) {
+      return null;
     }
+
+    return getBaseUrl(schemaUrlString);
   }
 
-  public static String getSubject(Configuration config) {
+  public static String getBaseUrl(String schemaUrlString) throws MalformedURLException{
+    URL schemaUrl = new URL(schemaUrlString);
+    return schemaUrl.getProtocol() + "://" + schemaUrl.getHost() + ":" + schemaUrl.getPort();
+  }
+
+  public static String getSubject(Configuration config) throws AvroSerdeException, MalformedURLException {
     String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
     if (schemaUrlString.contains(".avsc")) {
-      return "";
+      return null;
     }
 
     Pattern pattern = Pattern.compile(getBaseUrl(schemaUrlString) + "/subjects/(.+)/versions/.+/schema");
@@ -382,6 +381,6 @@ public class AvroSerdeUtils {
     if(matcher.find()) {
       return matcher.group(1);
     }
-    return "";
+    throw new AvroSerdeException("Could not find subject");
   }
 }
