@@ -366,7 +366,9 @@ public class AvroSerdeUtils {
 
   public static String getBaseUrl(String schemaUrlString) throws MalformedURLException{
     URL schemaUrl = new URL(schemaUrlString);
-    return schemaUrl.getProtocol() + "://" + schemaUrl.getHost() + ":" + schemaUrl.getPort();
+    String portPart = schemaUrl.getPort() == -1 ? "" : ":" + schemaUrl.getPort();
+
+    return schemaUrl.getProtocol() + "://" + schemaUrl.getHost() + portPart ;
   }
 
   public static String getSubject(Configuration config) throws AvroSerdeException, MalformedURLException {

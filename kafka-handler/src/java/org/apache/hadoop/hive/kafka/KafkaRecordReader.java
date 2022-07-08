@@ -82,6 +82,7 @@ import java.util.stream.Collectors;
   private void fetchSubjectIds() {
       try {
         String schemaRegistryUrl = AvroSerdeUtils.getBaseUrl(config);
+        LOG.debug("Schema URL {}", schemaRegistryUrl);
         isAvroSchemaDefinedByRegistryUrl = (schemaRegistryUrl != null);
         if (!isAvroSchemaDefinedByRegistryUrl) {
           return;
