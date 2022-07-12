@@ -89,7 +89,7 @@ import java.util.stream.Collectors;
         }
         schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
         String subject = AvroSerdeUtils.getSubject(config);
-        
+
         List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
         subjectIds = versions.stream()
                 .map(version -> fetchSubjectIdByVersion(subject, version))

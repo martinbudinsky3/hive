@@ -365,7 +365,7 @@ public class AvroSerdeUtils {
 
   public static String getSchemaRegistryBaseUrl(String schemaUrlString) throws MalformedURLException {
     URL schemaUrl = new URL(schemaUrlString);
-    if ("".equals(schemaUrl.getFile())) {
+    if (!"".equals(schemaUrl.getFile())) {
       return null;
     }
 
