@@ -356,7 +356,7 @@ public class AvroSerdeUtils {
 
   public static String getSchemaRegistryBaseUrl(Configuration config) throws MalformedURLException {
     String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
-    if (schemaUrlString == null) {
+    if (schemaUrlString == null || schemaUrlString.endsWith(".avsc")) {
       return null;
     }
 
@@ -365,9 +365,6 @@ public class AvroSerdeUtils {
 
   public static String getSchemaRegistryBaseUrl(String schemaUrlString) throws MalformedURLException {
     URL schemaUrl = new URL(schemaUrlString);
-    if (!"".equals(schemaUrl.getFile())) {
-      return null;
-    }
 
     String portPart = schemaUrl.getPort() == -1 ? "" : ":" + schemaUrl.getPort();
 
@@ -383,6 +380,6 @@ public class AvroSerdeUtils {
     if(matcher.find()) {
       return matcher.group(1);
     }
-    throw new AvroSerdeException("Could not find subject");
+    throw new AvroSerdeException("Could not find subject in URL: " + schemaUrlString);
   }
 }
