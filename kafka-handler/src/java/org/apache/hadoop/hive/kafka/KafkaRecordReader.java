@@ -81,7 +81,7 @@ import java.util.stream.Collectors;
 
   private void fetchSubjectIds() {
       try {
-        String schemaRegistryUrl = AvroSerdeUtils.getBaseUrl(config);
+        String schemaRegistryUrl = AvroSerdeUtils.getSchemaRegistryBaseUrl(config);
         LOG.debug("Schema URL {}", schemaRegistryUrl);
         isAvroSchemaDefinedByRegistryUrl = (schemaRegistryUrl != null);
         if (!isAvroSchemaDefinedByRegistryUrl) {
@@ -89,10 +89,7 @@ import java.util.stream.Collectors;
         }
         schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
         String subject = AvroSerdeUtils.getSubject(config);
-        isAvroSchemaDefinedByRegistryUrl = (subject != null);
-        if (!isAvroSchemaDefinedByRegistryUrl) {
-          return;
-        }
+        
         List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
         subjectIds = versions.stream()
                 .map(version -> fetchSubjectIdByVersion(subject, version))

@@ -46,7 +46,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Utilities useful only to the AvroSerde itself.  Not mean to be used by
@@ -355,17 +354,21 @@ public class AvroSerdeUtils {
     }
   }
 
-  public static String getBaseUrl(Configuration config) throws MalformedURLException {
+  public static String getSchemaRegistryBaseUrl(Configuration config) throws MalformedURLException {
     String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
     if (schemaUrlString == null) {
       return null;
     }
 
-    return getBaseUrl(schemaUrlString);
+    return getSchemaRegistryBaseUrl(schemaUrlString);
   }
 
-  public static String getBaseUrl(String schemaUrlString) throws MalformedURLException{
+  public static String getSchemaRegistryBaseUrl(String schemaUrlString) throws MalformedURLException {
     URL schemaUrl = new URL(schemaUrlString);
+    if ("".equals(schemaUrl.getFile())) {
+      return null;
+    }
+
     String portPart = schemaUrl.getPort() == -1 ? "" : ":" + schemaUrl.getPort();
 
     return schemaUrl.getProtocol() + "://" + schemaUrl.getHost() + portPart ;
@@ -373,11 +376,8 @@ public class AvroSerdeUtils {
 
   public static String getSubject(Configuration config) throws AvroSerdeException, MalformedURLException {
     String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
-    if (schemaUrlString.contains(".avsc")) {
-      return null;
-    }
 
-    Pattern pattern = Pattern.compile(getBaseUrl(schemaUrlString) + "/subjects/(.+)/versions/.+/schema");
+    Pattern pattern = Pattern.compile(getSchemaRegistryBaseUrl(schemaUrlString) + "/subjects/(.+)/versions/.+/schema");
     Matcher matcher = pattern.matcher(schemaUrlString);
 
     if(matcher.find()) {
