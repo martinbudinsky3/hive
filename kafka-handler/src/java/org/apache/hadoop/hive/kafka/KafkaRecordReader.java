@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
   private long readBytes = 0L;
   private volatile boolean started = false;
   private boolean isAvroSchemaDefinedByRegistryUrl = false;
+  private int currentSubjectVersionId = 1;
 
   @SuppressWarnings("WeakerAccess") public KafkaRecordReader() {
   }
@@ -89,8 +90,12 @@ import java.util.stream.Collectors;
         }
         schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
         String subject = AvroSerdeUtils.getSubject(config);
+        String versionString = AvroSerdeUtils.getVersion(config);
 
         List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
+        currentSubjectVersionId = AvroSerdeUtils.VERSION_LATEST.equals(versionString)
+                ? Collections.max(versions)
+                : Integer.parseInt(versionString);
         subjectIds = versions.stream()
                 .map(version -> fetchSubjectIdByVersion(subject, version))
                 .collect(Collectors.toList());
@@ -173,6 +178,7 @@ import java.util.stream.Collectors;
   private boolean checkNullIgnore() {
       boolean ignoreNull = Boolean.parseBoolean(config.get(KafkaTableProperties.SERDE_IGNORE_NULL.getName()));
       LOG.debug("serde.ignore.null: {}", ignoreNull);
+
       return ignoreNull;
   }
 
@@ -180,7 +186,21 @@ import java.util.stream.Collectors;
     int subjectId = ByteBuffer.wrap(Arrays.copyOfRange(record.value(), 1, 5)).getInt();
     LOG.debug("Subject Id from record: {}", subjectId);
 
-    return subjectIds.contains(subjectId);
+    if (!subjectIds.contains(subjectId)) {
+      return false;
+    }
+
+    if (subjectId != currentSubjectVersionId) {
+      String exceptionMessage = String.format(
+              "Expected record produced by schema version with id %s but got %s (partition: %s, offset: %s)",
+              currentSubjectVersionId, subjectId, record.partition(), record.offset()
+      );
+      throw new RuntimeException(
+              new KafkaReaderException(exceptionMessage)
+      );
+    }
+
+    return true;
   }
 
   @Override public NullWritable createKey() {

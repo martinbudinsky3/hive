@@ -95,6 +95,7 @@ public class AvroSerdeUtils {
   public static final String EXCEPTION_MESSAGE = "Neither "
       + AvroTableProperties.SCHEMA_LITERAL.getPropName() + " nor "
       + AvroTableProperties.SCHEMA_URL.getPropName() + " specified, can't determine table schema";
+  public static final String VERSION_LATEST = "latest";
 
 
 
@@ -381,5 +382,17 @@ public class AvroSerdeUtils {
       return matcher.group(1);
     }
     throw new AvroSerdeException("Could not find subject in URL: " + schemaUrlString);
+  }
+
+  public static String getVersion(Configuration config) throws AvroSerdeException, MalformedURLException {
+    String schemaUrlString = config.get(AvroTableProperties.SCHEMA_URL.getPropName());
+
+    Pattern pattern = Pattern.compile(getSchemaRegistryBaseUrl(schemaUrlString) + "/subjects/.+/versions/(.+)/schema");
+    Matcher matcher = pattern.matcher(schemaUrlString);
+
+    if(matcher.find()) {
+      return matcher.group(1);
+    }
+    throw new AvroSerdeException("Could not find version in URL: " + schemaUrlString);
   }
 }
