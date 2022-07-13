@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
   private KafkaWritable currentWritableValue;
   private Iterator<ConsumerRecord<byte[], byte[]>> recordsCursor = null;
   private SchemaRegistryClient schemaRegistryClient;
-  private List<Integer> subjectIds = new ArrayList();
+  private Map<Integer, Integer> schemaIdToVersion = new HashMap<>();
 
   private long totalNumberRecords = 0L;
   private long consumedRecords = 0L;
@@ -75,44 +75,6 @@ import java.util.stream.Collectors;
       Preconditions.checkNotNull(brokerString, "broker end point can not be null");
       LOG.info("Starting Consumer with Kafka broker string [{}]", brokerString);
       consumer = new KafkaConsumer<>(properties);
-    }
-
-    fetchSubjectIds();
-  }
-
-  private void fetchSubjectIds() {
-      try {
-        String schemaRegistryUrl = AvroSerdeUtils.getSchemaRegistryBaseUrl(config);
-        LOG.debug("Schema URL {}", schemaRegistryUrl);
-        isAvroSchemaDefinedByRegistryUrl = (schemaRegistryUrl != null);
-        if (!isAvroSchemaDefinedByRegistryUrl) {
-          return;
-        }
-        schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
-        String subject = AvroSerdeUtils.getSubject(config);
-        String versionString = AvroSerdeUtils.getVersion(config);
-
-        List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
-        currentSubjectVersionId = AvroSerdeUtils.VERSION_LATEST.equals(versionString)
-                ? Collections.max(versions)
-                : Integer.parseInt(versionString);
-        subjectIds = versions.stream()
-                .map(version -> fetchSubjectIdByVersion(subject, version))
-                .collect(Collectors.toList());
-
-        LOG.debug("Versions found: {}", StringUtils.join(subjectIds, ','));
-
-      } catch (IOException | RestClientException | AvroSerdeException e) {
-        throw new RuntimeException(e);
-      }
-  }
-
-  private int fetchSubjectIdByVersion(String subject, int version) {
-    try {
-        SchemaMetadata schemaMetadata = schemaRegistryClient.getSchemaMetadata(subject, version);
-        return schemaMetadata.getId();
-    } catch (IOException | RestClientException e) {
-      throw new RuntimeException(e);
     }
   }
 
@@ -139,7 +101,44 @@ import java.util.stream.Collectors;
           startOffset == endOffset ?
               new EmptyIterator() :
               new KafkaRecordIterator(consumer, topicPartition, startOffset, endOffset, pollTimeout);
+      fetchSubjectIds();
       started = true;
+    }
+  }
+
+  private void fetchSubjectIds() {
+    try {
+      String schemaRegistryUrl = AvroSerdeUtils.getSchemaRegistryBaseUrl(config);
+      LOG.debug("Schema URL {}", schemaRegistryUrl);
+      isAvroSchemaDefinedByRegistryUrl = (schemaRegistryUrl != null);
+      if (!isAvroSchemaDefinedByRegistryUrl) {
+        return;
+      }
+      schemaRegistryClient = new CachedSchemaRegistryClient(schemaRegistryUrl, 10);
+      String subject = AvroSerdeUtils.getSubject(config);
+      String currentVersionString = AvroSerdeUtils.getVersion(config);
+
+      List<Integer> versions = schemaRegistryClient.getAllVersions(subject);
+      int currentVersion = AvroSerdeUtils.VERSION_LATEST.equals(currentVersionString)
+              ? Collections.max(versions)
+              : Integer.parseInt(currentVersionString);
+      currentSubjectVersionId = fetchSchemaIdBySubjectAndVersion(subject, currentVersion);
+      schemaIdToVersion = versions.stream()
+              .collect(Collectors.toMap(version -> fetchSchemaIdBySubjectAndVersion(subject, version), version -> version));
+
+      LOG.debug("Versions found: {}", StringUtils.join(schemaIdToVersion.keySet(), ','));
+
+    } catch (IOException | RestClientException | AvroSerdeException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private int fetchSchemaIdBySubjectAndVersion(String subject, int version) {
+    try {
+      SchemaMetadata schemaMetadata = schemaRegistryClient.getSchemaMetadata(subject, version);
+      return schemaMetadata.getId();
+    } catch (IOException | RestClientException e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -183,17 +182,19 @@ import java.util.stream.Collectors;
   }
 
   private boolean checkSubject(ConsumerRecord<byte[], byte[]> record) {
-    int subjectId = ByteBuffer.wrap(Arrays.copyOfRange(record.value(), 1, 5)).getInt();
-    LOG.debug("Subject Id from record: {}", subjectId);
+    int schemaId = ByteBuffer.wrap(Arrays.copyOfRange(record.value(), 1, 5)).getInt();
+    LOG.debug("Schema Id from record: {}", schemaId);
 
-    if (!subjectIds.contains(subjectId)) {
+    if (!schemaIdToVersion.containsKey(schemaId)) {
       return false;
     }
 
-    if (subjectId != currentSubjectVersionId) {
+    if (schemaId != currentSubjectVersionId) {
       String exceptionMessage = String.format(
-              "Expected record produced by schema version with id %s but got %s (partition: %s, offset: %s)",
-              currentSubjectVersionId, subjectId, record.partition(), record.offset()
+              "Expected record produced by subject version %s (ID %s) but got record produced by subject version %s (ID %s) " +
+                      "- [partition: %s, offset: %s]",
+              schemaIdToVersion.get(currentSubjectVersionId), currentSubjectVersionId, schemaIdToVersion.get(schemaId),
+              schemaId, record.partition(), record.offset()
       );
       throw new RuntimeException(
               new KafkaReaderException(exceptionMessage)
