@@ -191,8 +191,8 @@ import java.util.stream.Collectors;
 
     if (schemaId != currentSubjectVersionId) {
       String exceptionMessage = String.format(
-              "Expected record produced by subject version %s (ID %s) but got record produced by subject version %s (ID %s) " +
-                      "- [partition: %s, offset: %s]",
+              "Expected records produced by subject version %s (ID: %s) but got record produced by subject version %s (ID: %s) " +
+                      "[partition: %s, offset: %s]",
               schemaIdToVersion.get(currentSubjectVersionId), currentSubjectVersionId, schemaIdToVersion.get(schemaId),
               schemaId, record.partition(), record.offset()
       );
